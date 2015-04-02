@@ -12,8 +12,8 @@ module Prometheus
       class Value < Hash
         attr_accessor :sum, :total
 
-        def initialize(streaming_estimator)
-          estimator = streaming_estimator.current_stream.estimator
+        def initialize(swe)
+          estimator = swe.current
           @sum, @total = estimator.sum, estimator.observations
 
           estimator.invariants.each do |invariant|
@@ -22,51 +22,61 @@ module Prometheus
         end
       end
 
-      class StreamingEstimator
-        attr_accessor :streams, :head_stream_index
+      # SlidingWindowEstimator ensures that quantile calculations only account
+      # for observations added in the last 10 minutes. The Quantile::Estimator
+      # implementation doesn't natively support this concept, so a strategy
+      # similar to that used in the Go client is used to exclude observations
+      # that are no longer relevant.
+      class SlidingWindowEstimator
+        attr_accessor :windows, :head_window_index, :head_window_expires_at
         MAX_AGE = 10 * 60
-        STREAM_COUNT = 5
-        STREAM_WIDTH = MAX_AGE.to_f / STREAM_COUNT
+        WINDOW_COUNT = 5
+        WINDOW_INTERVAL = MAX_AGE.to_f / WINDOW_COUNT
 
         def initialize
-          self.streams = Array.new(STREAM_COUNT) { Stream.new }
-          self.head_stream_index = 0
+          self.windows = Array.new(WINDOW_COUNT) { default_value }
+          self.head_window_index = 0
+          self.head_window_expires_at = Time.now + WINDOW_INTERVAL
+        end
+
+        def default_value
+          Quantile::Estimator.new
         end
 
         def observe(value)
-          refresh_streams!
-          streams.each do |s|
-            s.estimator.observe(value)
+          refresh_windows!
+          windows.each do |s|
+            s.observe(value)
           end
           value
         end
 
-        def current_stream
-          refresh_streams!
+        def current
+          refresh_windows!
+          windows[head_window_index]
         end
 
-        def refresh_streams!
-          while (head_stream = streams[head_stream_index]).age > MAX_AGE
-            head_stream.reset!
-            self.head_stream_index = (head_stream_index + 1) % STREAM_COUNT
-          end
-          head_stream
+        private
+
+        def next_window_expiration(at_time = Time.now)
+          delta = (head_window_expires_at - at_time) % WINDOW_INTERVAL
+          at_time + delta
         end
 
-        class Stream
-          attr_reader :estimator, :created_at
-          def initialize
-            reset!
-          end
+        def expired_window_count(at_time = Time.now)
+          elapsed_time = (at_time - head_window_expires_at)
+          elapsed_intervals = elapsed_time / WINDOW_INTERVAL
+          [WINDOW_COUNT, elapsed_intervals.ceil].min
+        end
 
-          def age
-            Time.now - created_at
+        def refresh_windows!
+          now = Time.now
+          return unless now > head_window_expires_at
+          expired_window_count(now).times do
+            windows[head_window_index] = default_value
+            self.head_window_index = (head_window_index + 1) % WINDOW_COUNT
           end
-
-          def reset!
-            @created_at = Time.now
-            @estimator = Quantile::Estimator.new
-          end
+          self.head_window_expires_at = next_window_expiration(now)
         end
       end
 
@@ -101,7 +111,7 @@ module Prometheus
       private
 
       def default
-        StreamingEstimator.new
+        SlidingWindowEstimator.new
       end
     end
   end

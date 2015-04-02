@@ -35,7 +35,8 @@ describe Prometheus::Client::Rack::Collector do
   end
 
   it 'traces request information' do
-    expect(Time).to receive(:now).twice.and_return(0.0, 0.000002)
+    times = [0.0, 0.000002, 0.000004, 0.000006, 0.000008]
+    expect(Time).to receive(:now).exactly(5).times.and_return(*times)
     labels = { method: 'get', path: '/foo', code: '200' }
 
     get '/foo'
