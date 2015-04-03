@@ -2,6 +2,7 @@
 
 require 'rack/test'
 require 'prometheus/client/rack/collector'
+require 'prometheus/client/summary'
 
 describe Prometheus::Client::Rack::Collector do
   include Rack::Test::Methods
@@ -41,10 +42,16 @@ describe Prometheus::Client::Rack::Collector do
 
     get '/foo'
 
+    expected_summary = Prometheus::Client::Summary::Value.new(
+      sum: 2,
+      total: 1,
+      quantiles: { 0.5 => 2, 0.9 => 2, 0.99 => 2 },
+    )
+
     {
       http_requests_total: 1,
       http_request_durations_total_microseconds: 2,
-      http_request_durations_microseconds: { 0.5 => 2, 0.9 => 2, 0.99 => 2 },
+      http_request_durations_microseconds: expected_summary,
     }.each do |metric, result|
       expect(registry.get(metric).get(labels)).to eql(result)
     end

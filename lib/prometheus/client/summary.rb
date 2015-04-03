@@ -1,7 +1,7 @@
 # encoding: UTF-8
 
-require 'quantile'
 require 'prometheus/client/metric'
+require 'prometheus/client/sliding_quantile_estimator'
 
 module Prometheus
   module Client
@@ -9,74 +9,37 @@ module Prometheus
     # provides an efficient quantile calculation mechanism.
     class Summary < Metric
       # Value represents the state of a Summary at a given point.
-      class Value < Hash
-        attr_accessor :sum, :total
+      class Value
+        attr_accessor :sum, :total, :quantiles
 
-        def initialize(swe)
-          estimator = swe.current
-          @sum, @total = estimator.sum, estimator.observations
+        def initialize(attrs = {})
+          self.sum = attrs[:sum]
+          self.total = attrs[:total]
+          self.quantiles = attrs[:quantiles]
+        end
 
+        def self.build(estimator)
+          quantiles = {}
           estimator.invariants.each do |invariant|
-            self[invariant.quantile] = estimator.query(invariant.quantile)
+            quantiles[invariant.quantile] = estimator.query(invariant.quantile)
           end
-        end
-      end
 
-      # SlidingWindowEstimator ensures that quantile calculations only account
-      # for observations added in the last 10 minutes. The Quantile::Estimator
-      # implementation doesn't natively support this concept, so a strategy
-      # similar to that used in the Go client is used to exclude observations
-      # that are no longer relevant.
-      class SlidingWindowEstimator
-        attr_accessor :windows, :head_window_index, :head_window_expires_at
-        MAX_AGE = 10 * 60
-        WINDOW_COUNT = 5
-        WINDOW_INTERVAL = MAX_AGE.to_f / WINDOW_COUNT
-
-        def initialize
-          self.windows = Array.new(WINDOW_COUNT) { default_value }
-          self.head_window_index = 0
-          self.head_window_expires_at = Time.now + WINDOW_INTERVAL
+          new(
+            sum: estimator.sum,
+            total: estimator.observations,
+            quantiles: quantiles,
+          )
         end
 
-        def default_value
-          Quantile::Estimator.new
+        def ==(other)
+          other.is_a?(Value) &&
+            total     == other.total &&
+            sum       == other.sum &&
+            quantiles == other.quantiles
         end
 
-        def observe(value)
-          refresh_windows!
-          windows.each do |s|
-            s.observe(value)
-          end
-          value
-        end
-
-        def current
-          refresh_windows!
-          windows[head_window_index]
-        end
-
-        private
-
-        def next_window_expiration(at_time = Time.now)
-          delta = (head_window_expires_at - at_time) % WINDOW_INTERVAL
-          at_time + delta
-        end
-
-        def expired_window_count(at_time = Time.now)
-          elapsed_time = (at_time - head_window_expires_at)
-          elapsed_intervals = elapsed_time / WINDOW_INTERVAL
-          [WINDOW_COUNT, elapsed_intervals.ceil].min
-        end
-
-        def refresh_windows!
-          now = Time.now
-          return unless now > head_window_expires_at
-          expired_window_count(now).times do
-            windows[head_window_index] = default_value
-            self.head_window_index = (head_window_index + 1) % WINDOW_COUNT
-          end
-          self.head_window_expires_at = next_window_expiration(now)
+        def eql?(other)
+          other.class.equal?(self.class) && self == other
         end
       end
 
@@ -95,7 +58,7 @@ module Prometheus
         @validator.valid?(labels)
 
         synchronize do
-          Value.new(@values[labels])
+          Value.build(@values[labels].head_value)
         end
       end
 
@@ -103,7 +66,7 @@ module Prometheus
       def values
         synchronize do
           @values.each_with_object({}) do |(labels, value), memo|
-            memo[labels] = Value.new(value)
+            memo[labels] = Value.build(value.head_value)
           end
         end
       end
@@ -111,7 +74,7 @@ module Prometheus
       private
 
       def default
-        SlidingWindowEstimator.new
+        SlidingQuantileEstimator.new
       end
     end
   end

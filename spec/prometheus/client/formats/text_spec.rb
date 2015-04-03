@@ -1,12 +1,15 @@
 # encoding: UTF-8
 
 require 'prometheus/client/formats/text'
+require 'prometheus/client/summary'
 
 describe Prometheus::Client::Formats::Text do
   let(:summary_value) do
-    { 0.5  => 4.2, 0.9  => 8.32, 0.99 => 15.3 }.tap do |value|
-      allow(value).to receive_messages(sum: 1243.21, total: 93)
-    end
+    Prometheus::Client::Summary::Value.new(
+      sum: 1243.21,
+      total: 93,
+      quantiles: { 0.5  => 4.2, 0.9  => 8.32, 0.99 => 15.3 },
+    )
   end
 
   let(:registry) do

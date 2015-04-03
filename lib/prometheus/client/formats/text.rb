@@ -49,7 +49,7 @@ module Prometheus
         end
 
         def self.summary(name, set, value)
-          value.each do |q, v|
+          value.quantiles.each do |q, v|
             yield metric(name, labels(set.merge(quantile: q)), v)
           end
 
