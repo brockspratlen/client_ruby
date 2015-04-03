@@ -58,7 +58,7 @@ module Prometheus
         @validator.valid?(labels)
 
         synchronize do
-          Value.build(@values[labels].head_value)
+          Value.build(@values[labels].head_window)
         end
       end
 
@@ -66,7 +66,7 @@ module Prometheus
       def values
         synchronize do
           @values.each_with_object({}) do |(labels, value), memo|
-            memo[labels] = Value.build(value.head_value)
+            memo[labels] = Value.build(value.head_window)
           end
         end
       end

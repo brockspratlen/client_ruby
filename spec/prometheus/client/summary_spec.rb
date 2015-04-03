@@ -48,7 +48,6 @@ describe Prometheus::Client::Summary do
     end
 
     before do
-      puts "BEFORE BLOCK CALLED"
       Timecop.freeze(start_time)
       summary.add({ foo: 'bar' }, 3)
       summary.add({ foo: 'bar' }, 5.2)
@@ -88,7 +87,6 @@ describe Prometheus::Client::Summary do
 
       describe 'windows' do
         it 'should expire observations in windows' do
-          $pry = false
           Timecop.freeze(start_time + window_interval - 0.1)
           summary.add({ foo: 'bar' }, 12)
           summary.add({ foo: 'bar' }, 6.7)
@@ -97,14 +95,10 @@ describe Prometheus::Client::Summary do
             total: 6,
             quantiles: { 0.5 => 5.2, 0.9 => 6.7, 0.99 => 6.7 },
           )
-          $pry=true
-          puts "1"
           expect(summary.get(foo: 'bar')).to eql(expected)
 
           Timecop.freeze(start_time + window_interval + 0.1)
-          puts "2"
           expect(summary.get(foo: 'bar')).to eql(expected)
-          $pry=false
 
           summary.add({ foo: 'bar' }, 11)
           summary.add({ foo: 'bar' }, 20)
@@ -114,10 +108,7 @@ describe Prometheus::Client::Summary do
             total: 9,
             quantiles: { 0.5 => 5.2, 0.9 => 12, 0.99 => 12 },
           )
-          $pry=true
-          puts "3"
           expect(summary.get(foo: 'bar')).to eql(expected)
-          $pry=false
           expect(summary.get(foo: 'bar')).to eql(expected)
 
           # puts "TROUBLE SPOT"

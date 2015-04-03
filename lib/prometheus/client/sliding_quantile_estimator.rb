@@ -36,7 +36,7 @@ module Prometheus
         value
       end
 
-      def head_value
+      def head_window
         # require 'pry'; binding.pry if $pry
         refresh_windows!
         windows[head_window_index]
