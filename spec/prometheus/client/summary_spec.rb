@@ -28,15 +28,15 @@ describe Prometheus::Client::Summary do
 
     let(:expiry_time) do
       start_time +
-        Prometheus::Client::SlidingQuantileEstimator::MAX_AGE
+        Prometheus::Client::WindowedSampleStream::MAX_AGE
     end
 
     let(:window_interval) do
-      Prometheus::Client::SlidingQuantileEstimator::WINDOW_INTERVAL
+      Prometheus::Client::WindowedSampleStream::WINDOW_INTERVAL
     end
 
     let(:window_count) do
-      Prometheus::Client::SlidingQuantileEstimator::WINDOW_COUNT
+      Prometheus::Client::WindowedSampleStream::WINDOW_COUNT
     end
 
     let(:empty_value) do

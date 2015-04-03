@@ -4,40 +4,41 @@ require 'quantile'
 
 module Prometheus
   module Client
-    # SlidingQuantileEstimator ensures that quantile calculations only account
-    # for observations added in the last 10 minutes. The Quantile::Estimator
-    # implementation doesn't natively support this concept, so a strategy
-    # similar to that used in the Go client is used to exclude observations
-    # that are no longer relevant.
-    class SlidingQuantileEstimator
+    # WindowedSampleStream mirrors the approach of the "AgeBuckets" used in the
+    # go client's Summary implementation. As samples are observed, they are
+    # applied to each of the current WINDOW_COUNT windows. The oldest window is
+    # expired every WINDOW_INTERVAL seconds, effectively causing samples
+    # observed (MAX_AGE - WINDOW_INTERVAL) seconds ago or before to be discarded.
+    class WindowedSampleStream
       attr_accessor :windows, :head_window_index, :head_window_expires_at,
-        :quantile_estimator_builder
+        :observer_builder, :observer_add_method
       MAX_AGE = 10 * 60
       WINDOW_COUNT = 5
       WINDOW_INTERVAL = MAX_AGE.to_f / WINDOW_COUNT
 
-      def initialize(&qe_builder)
-        qe_builder ||= Proc.new { Quantile::Estimator.new }
-        self.quantile_estimator_builder = qe_builder
-        self.windows = Array.new(WINDOW_COUNT) { build_quantile_estimator }
+      def initialize(opts = {}, &observer_builder)
+        unless self.observer_builder = observer_builder
+          raise "missing observer_builder block"
+        end
+        self.observer_add_method = opts[:add_method] || :add
+        self.windows = Array.new(WINDOW_COUNT) { build_observer }
         self.head_window_index = 0
         self.head_window_expires_at = Time.now + WINDOW_INTERVAL
       end
 
-      def build_quantile_estimator
-        quantile_estimator_builder.call
+      def build_observer
+        observer_builder.call
       end
 
-      def observe(value)
+      def add(value)
         refresh_windows!
         windows.each do |s|
-          s.observe(value)
+          s.send(observer_add_method, value)
         end
         value
       end
 
       def head_window
-        # require 'pry'; binding.pry if $pry
         refresh_windows!
         windows[head_window_index]
       end
@@ -59,7 +60,7 @@ module Prometheus
         now = Time.now
         return unless now > head_window_expires_at
         expired_window_count(now).times do
-          windows[head_window_index] = build_quantile_estimator
+          windows[head_window_index] = build_observer
           self.head_window_index = (head_window_index + 1) % WINDOW_COUNT
         end
         self.head_window_expires_at = next_window_expiration(now)
