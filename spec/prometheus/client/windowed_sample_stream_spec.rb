@@ -63,7 +63,7 @@ describe Prometheus::Client::WindowedSampleStream do
 
     context 'just before first window expires' do
       before { Timecop.freeze(start_time + window_interval - 0.1) }
-      it "all windows should have all samples" do
+      it 'all windows should have all samples' do
         expect(subject.windows.any? { |w| w.samples != @samples }).to eq(false)
         expect(subject.head_window.samples).to eq(@samples)
       end

@@ -8,17 +8,17 @@ module Prometheus
     # go client's Summary implementation. As samples are observed, they are
     # applied to each of the current WINDOW_COUNT windows. The oldest window is
     # expired every WINDOW_INTERVAL seconds, effectively causing samples
-    # observed (MAX_AGE - WINDOW_INTERVAL) seconds ago or before to be discarded.
+    # observed MAX_AGE - WINDOW_INTERVAL seconds ago or before to be discarded.
     class WindowedSampleStream
       attr_accessor :windows, :head_window_index, :head_window_expires_at,
-        :observer_builder, :observer_add_method
+                    :observer_builder, :observer_add_method
       MAX_AGE = 10 * 60
       WINDOW_COUNT = 5
       WINDOW_INTERVAL = MAX_AGE.to_f / WINDOW_COUNT
 
       def initialize(opts = {}, &observer_builder)
         unless self.observer_builder = observer_builder
-          raise "missing observer_builder block"
+          fail 'missing observer_builder block'
         end
         self.observer_add_method = opts[:add_method] || :add
         self.windows = Array.new(WINDOW_COUNT) { build_observer }

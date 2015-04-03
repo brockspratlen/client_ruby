@@ -79,7 +79,9 @@ module Prometheus
       private
 
       def default
-        WindowedSampleStream.new(add_method: :observe) { Quantile::Estimator.new }
+        WindowedSampleStream.new(add_method: :observe) do
+          Quantile::Estimator.new
+        end
       end
     end
   end
