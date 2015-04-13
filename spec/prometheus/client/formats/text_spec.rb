@@ -12,6 +12,14 @@ describe Prometheus::Client::Formats::Text do
     )
   end
 
+  let(:empty_summary_value) do
+    Prometheus::Client::Summary::Value.new(
+      sum: 0,
+      total: 0,
+      quantiles: { 0.5  => nil, 0.9  => nil, 0.99 => nil },
+    )
+  end
+
   let(:registry) do
     double(metrics: [
       double(
@@ -46,6 +54,13 @@ describe Prometheus::Client::Formats::Text do
         type: :summary,
         values: { { code: '1' } => summary_value },
       ),
+      double(
+        name: :qux_empty,
+        docstring: 'qux_empty description',
+        base_labels: { for: 'sake' },
+        type: :summary,
+        values: { { code: 'empty' } => empty_summary_value },
+      ),
     ])
   end
 
@@ -70,6 +85,13 @@ qux{for="sake",code="1",quantile="0.9"} 8.32
 qux{for="sake",code="1",quantile="0.99"} 15.3
 qux_sum{for="sake",code="1"} 1243.21
 qux_total{for="sake",code="1"} 93
+# TYPE qux_empty summary
+# HELP qux_empty qux_empty description
+qux_empty{for="sake",code="empty",quantile="0.5"} NaN
+qux_empty{for="sake",code="empty",quantile="0.9"} NaN
+qux_empty{for="sake",code="empty",quantile="0.99"} NaN
+qux_empty_sum{for="sake",code="empty"} 0
+qux_empty_total{for="sake",code="empty"} 0
       TEXT
     end
   end

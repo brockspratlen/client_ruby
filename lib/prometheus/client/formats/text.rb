@@ -50,7 +50,7 @@ module Prometheus
 
         def self.summary(name, set, value)
           value.quantiles.each do |q, v|
-            yield metric(name, labels(set.merge(quantile: q)), v)
+            yield metric(name, labels(set.merge(quantile: q)), v || 'NaN')
           end
 
           l = labels(set)
