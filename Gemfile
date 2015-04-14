@@ -7,6 +7,6 @@ group :test do
   gem 'rack-test'
   gem 'rake'
   gem 'rspec'
-  gem 'rubocop'
+  gem 'rubocop', '0.28.0'
   gem 'timecop'
 end

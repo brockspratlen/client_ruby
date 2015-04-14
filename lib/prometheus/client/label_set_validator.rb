@@ -6,7 +6,7 @@ module Prometheus
     # Prometheus specification.
     class LabelSetValidator
       # TODO: we might allow setting :instance in the future
-      RESERVED_LABELS = [:job, :instance]
+      RESERVED_LABELS = []
 
       class LabelSetError        < StandardError; end
       class InvalidLabelSetError < LabelSetError; end

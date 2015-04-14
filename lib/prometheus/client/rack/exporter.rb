@@ -13,7 +13,7 @@ module Prometheus
         attr_reader :app, :registry, :path
 
         FORMATS  = [Formats::Text, Formats::JSON]
-        FALLBACK = Formats::JSON
+        FALLBACK = Formats::Text
 
         def initialize(app, options = {})
           @app = app
